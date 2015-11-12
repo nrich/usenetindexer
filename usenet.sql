@@ -35,5 +35,3 @@ CREATE TABLE usenet_article (
 CREATE UNIQUE INDEX usenet_article_message_idx ON usenet_article(message);
 CREATE UNIQUE INDEX usenet_article_newsgroup_article_idx ON usenet_article(newsgroup_id, article);
 CREATE INDEX usenet_article_bin_idx ON usenet_article(binary_id);
-
-INSERT INTO usenet_newsgroup(name) VALUES('alt.binaries.comics.dcp');
