@@ -36,8 +36,15 @@ sub main {
             if (@$articles) {
                 my $s = $articles->[0]->[1];
 
+                next unless $s;
+
                 my ($number, $count) = $s =~ /\((\d+)\/(\d+)\)/g;
                 my $ac = scalar @$articles;
+
+                if (not defined $count) {
+                    print STDERR $s, "\n";
+                    next;
+                }
 
                 if ($ac == $count) {
                     my ($filename) = $s =~ /\"([^"]+)\"/g;

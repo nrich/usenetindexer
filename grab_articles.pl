@@ -24,7 +24,7 @@ sub REAPER {
     $SIG{CHLD} = \&REAPER;
 }
 
-getopts('bc:p:a:', \%opts);
+getopts('hbc:p:a:', \%opts);
 $opts{h} and usage();
 main(@ARGV);
 
@@ -65,6 +65,7 @@ sub main {
             my $nntp = UsenetIndexer::GetNNTP($config);
             $nntp->group($newsgroup);
 
+            $dbh->disconnect();
             my $dbh = UsenetIndexer::GetDB($config, AutoCommit => 1);
 
             $SIG{CHLD} = 'IGNORE';
@@ -73,6 +74,7 @@ sub main {
                 $start = $first + 1;
             }
             get($dbh, $nntp, $start, $end, $id, $newsgroup_id);
+            $dbh->disconnect();
             exit 0;
         } else {
             die "Fork failed: $!\n";
@@ -85,6 +87,8 @@ sub main {
     while (%CHILDREN) {
         sleep 1;
     }
+
+    $dbh->disconnect();
 }
 
 sub get {

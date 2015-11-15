@@ -31,51 +31,47 @@ sub main {
 
     my $middle = int(($max-$min)/2);
 
-    my $missing = [];
-    missing_between($dbh, $min, $max, $missing);
 
+    my $newsgroup_id = UsenetIndexer::GetNewsGroupID($dbh, $newsgroup);
     my $nntp = UsenetIndexer::GetNNTP($config);
     $nntp->group($newsgroup);
 
-    print STDERR scalar(@$missing), " missing articles\n";
-
-    my $newsgroup_id = UsenetIndexer::GetNewsGroupID($dbh, $newsgroup);
-
-    for my $art (@$missing) {
-        get($nntp, $dbh, $art, $newsgroup_id);
-    }
+    missing_between($nntp, $dbh, $min, $max, $newsgroup_id);
 }
 
 sub missing_between {
-    my ($dbh, $min, $max, $missing) = @_;
+    my ($nntp, $dbh, $min, $max, $newsgroup_id) = @_;
 
     my $sth = $dbh->prepare('SELECT COUNT(1) FROM usenet_article WHERE article >= ? AND article <= ?');
     $sth->execute($min, $max);
     my ($count) = $sth->fetchrow_array();
 
-    if ($max-$min <= 2000) {
+    if ($max-$min <= 200) {
         if ($count < $max-$min) {
+            my @missing = ();
+
+            print STDERR "Looking for gap in $min -> $max (count is $count)\n";
+
             for my $article ($min .. $max) {
                 my $exists = $dbh->prepare('SELECT COUNT(1) FROM usenet_article WHERE article = ?');
                 $exists->execute($article);
                 my ($article_exists) = $exists->fetchrow_array();
                 $exists->finish();
 
-                push @$missing, $article unless $article_exists;
+                push @missing, $article unless $article_exists;
             }
-        }
 
-        return $missing;
+            get($nntp, $dbh, $_, $newsgroup_id) for @missing;
+        }
+        return;
     }
 
     if ($count != ($max-$min)) {
         my $middle = int(($max-$min)/2);
 
-        missing_between($dbh, $min, $min+$middle, $missing);
-        missing_between($dbh, $min+$middle, $max, $missing);
+        missing_between($nntp, $dbh, $min, $min+$middle, $newsgroup_id);
+        missing_between($nntp, $dbh, $min+$middle, $max, $newsgroup_id);
     }
-
-    return $missing;
 }
 
 sub get {
@@ -84,6 +80,7 @@ sub get {
     my $sth = $dbh->prepare('INSERT INTO usenet_article(article,message,subject,posted,newsgroup_id) VALUES(?,?,?,?,?)');
 
     my $article = UsenetIndexer::GetArticle($nntp, $article_id);
+    return unless $article;
 
     $sth->execute($article_id, $article->{message}, $article->{subject}, $article->{posted}, $newsgroup_id);
 }

@@ -73,6 +73,8 @@ sub GetArticle {
 
     my $lines = $nntp->head($article_id);
 
+    return undef unless $lines;
+    return undef unless @$lines;
 
     my $subject = '';
     my $message = '';
@@ -96,6 +98,57 @@ sub GetArticle {
         subject => $subject,
         posted => $posted,
     };
+}
+
+sub BuildNZB {
+    my ($dbh, $binary_id) = @_;
+
+    my $newsgroup = '';
+    
+    my $number = 1;
+    my $segments = '';
+
+    my $sth = $dbh->prepare('SELECT newsgroup_id,message FROM usenet_article WHERE binary_id=? ORDER BY subject');
+    $sth->execute($binary_id);
+
+    while (my ($newsgroup_id, $message) = $sth->fetchrow_array()) {
+        $newsgroup ||= GetNewsGroupName($dbh, $newsgroup_id);
+
+        $segments .= "  <segment bytes=\"100\" number=\"$number\">$message</segment>\n";
+        $number++;
+    }
+
+    chomp $segments;
+
+    my $bin = $dbh->prepare('SELECT name,extract(epoch from posted) FROM usenet_binary WHERE id=?');
+    $bin->execute($binary_id);
+    my ($filename, $posted) = $bin->fetchrow_array();
+    $bin->finish();
+
+    my $subject = $filename;
+    $subject =~ s/&/&amp;/g;
+    $subject =~ s/</&lt;/g;
+    $subject =~ s/>/&gt;/g;
+    $subject =~ s/"/&quote;/g;
+    $subject =~ s/'/&#39;/g;
+
+    my $content = <<EOF;
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nzb PUBLIC "-//newzBin//DTD NZB 1.1//EN" "http://www.newzbin.com/DTD/nzb/nzb-1.1.dtd">
+<nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">
+
+<file poster="nobody (nobody\@nowhere.com)" date="$posted" subject="$subject">
+ <groups>
+  <group>$newsgroup</group>
+ </groups>
+ <segments>
+$segments
+ </segments>
+</file>
+</nzb>
+EOF
+
+    return wantarray ? ($content, $filename) : $content;
 }
 
 1;
