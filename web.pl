@@ -56,27 +56,34 @@ get '/search' => sub {
     my ($params) = @_;
 
     my $query = $params->{search};
+    my $optional = $params->{optional}||'';
 
     $query =~ s/ /&/g;
+    $optional =~ s/ /\|/g;
+
+    my $search = "$query";
+    if ($optional) {
+        $search = "${search}&($optional)";
+    }
 
     my $config = $opts{c} || 'etc/common.conf';
     my $dbh = UsenetIndexer::GetDB($config);
 
-    my $sth = $dbh->prepare('SELECT id,name FROM usenet_binary WHERE name @@ to_tsquery(?)');
-    $sth->execute($query);
+    my $sth = $dbh->prepare('SELECT id,name,posted FROM usenet_binary WHERE name @@ plainto_tsquery(?)');
+    $sth->execute($search);
 
     my $content = [];
-    while (my ($id, $name) = $sth->fetchrow_array()) {
-        push @$content, [$id, $name];
+    while (my ($id, $name, $posted) = $sth->fetchrow_array()) {
+        push @$content, [$id, $name, $posted];
     }
     $sth->finish();
 
     $dbh->disconnect();
 
-    my $rss = XML::RSS->new(version => '1.0');
+    my $rss = XML::RSS->new(version => '2.0');
     $rss->channel(
         title        => "",
-        link         => "/search?title=?$query",
+        link         => "/search?search=?$query",
         description  => "Search results",
     );
 
@@ -84,6 +91,8 @@ get '/search' => sub {
         $rss->add_item(
             title => $file->[1],
             link => "http://$ENV{HOST}/nzb?id=$file->[0]",
+            pubDate => $file->[2],
+            description => $file->[1],
         );
     } 
 
@@ -98,18 +107,18 @@ get '/latest' => sub {
     my $config = $opts{c} || 'etc/common.conf';
     my $dbh = UsenetIndexer::GetDB($config);
 
-    my $sth = $dbh->prepare('SELECT id,name FROM usenet_binary ORDER BY posted DESC limit ?');
+    my $sth = $dbh->prepare('SELECT id,name,posted FROM usenet_binary ORDER BY posted DESC limit ?');
     $sth->execute($limit);
 
     my $content = [];
-    while (my ($id, $name) = $sth->fetchrow_array()) {
-        push @$content, [$id, $name];
+    while (my ($id, $name, $posted) = $sth->fetchrow_array()) {
+        push @$content, [$id, $name, $posted];
     }
     $sth->finish();
 
     $dbh->disconnect();
 
-    my $rss = XML::RSS->new(version => '1.0');
+    my $rss = XML::RSS->new(version => '2.0');
     $rss->channel(
         title        => "",
         link         => "/latest?limit=?$limit",
@@ -120,6 +129,8 @@ get '/latest' => sub {
         $rss->add_item(
             title => $file->[1],
             link => "http://$ENV{HOST}/nzb?id=$file->[0]",
+            pubDate => $file->[2],
+            description => $file->[1],
         );
     } 
 

@@ -49,12 +49,22 @@ sub main {
 
     my $nntp = UsenetIndexer::GetNNTP($config);
     my ($nof_arts, $first_art, $last_art) = $nntp->group($newsgroup);
+
     undef $nntp;
 
     my $end = $opts{b} ? $first_article : $last_art;
     my $first = $opts{b} ? $first_art : $last_article;
 
+
+    if (not $opts{b} and $end - $first > ($articlecount * $forks)) {
+        my $total = $articlecount * $forks;
+        my $count = $end - $first;
+        die "Will not be able to grab $count in run, only grabbing $total articles\n";
+    }
+
+
     my $newsgroup_id = UsenetIndexer::GetNewsGroupID($dbh, $newsgroup);
+    $dbh->disconnect();
 
     for my $id (1 .. $forks) {
         my $pid = fork();
@@ -65,7 +75,6 @@ sub main {
             my $nntp = UsenetIndexer::GetNNTP($config);
             $nntp->group($newsgroup);
 
-            $dbh->disconnect();
             my $dbh = UsenetIndexer::GetDB($config, AutoCommit => 1);
 
             $SIG{CHLD} = 'IGNORE';
@@ -88,13 +97,14 @@ sub main {
         sleep 1;
     }
 
-    $dbh->disconnect();
 }
 
 sub get {
     my ($dbh, $nntp, $start, $end, $id, $newsgroup_id) = @_;
 
-print STDERR "$id -> [$start, $end]\n";
+    my $count = $end-$start;
+
+    print STDERR "$id -> [$start,$end] -> $count\n";
 
     $0 = "$0 $id";
 
@@ -112,7 +122,7 @@ print STDERR "$id -> [$start, $end]\n";
 sub usage {
     print <<EOF;
 Usage: $0 <newsgroup name> 
-    [-b backfile]
+    [-b backfill]
     [-c config file|etc/common.conf]
     [-a article count|2000]
     [-p process count|8] 

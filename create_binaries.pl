@@ -11,7 +11,7 @@ use lib qw(lib);
 use UsenetIndexer qw//;
 
 my %opts = ();
-getopts('hc:', \%opts);
+getopts('thc:', \%opts);
 $opts{h} and usage();
 main(@ARGV);
 
@@ -26,9 +26,14 @@ sub main {
     my $test = '';
     my $articles = [];
     while (my ($article, $subject, $posted) = $sth->fetchrow_array()) {
-        (my $pattern = $subject) =~ s/\(\d+\/(\d+)\)//;
+        my ($number, $count) = $subject =~ /.*\((\d+)\/(\d+)\)/g;
+        my $pattern = quotemeta $subject;
+        my $find = quotemeta "\\($number\\\/$count\\)";
+        my $replace = "\\(\\d+\\\/$count\\)";
 
-        $test ||= quotemeta $pattern;
+        $pattern =~ s/$find/$replace/g;
+
+        $test ||= $pattern;
 
         if ($subject =~ /$test/) {
             push @$articles, [$article, $subject, $posted];
@@ -36,15 +41,12 @@ sub main {
             if (@$articles) {
                 my $s = $articles->[0]->[1];
 
-                next unless $s;
+#                next unless $s;
 
-                my ($number, $count) = $s =~ /\((\d+)\/(\d+)\)/g;
+                my ($number, $count) = $s =~ /.*\((\d+)\/(\d+)\)/g;
                 my $ac = scalar @$articles;
 
-                if (not defined $count) {
-                    print STDERR $s, "\n";
-                    next;
-                }
+                $count ||= 0;
 
                 if ($ac == $count) {
                     my ($filename) = $s =~ /\"([^"]+)\"/g;
@@ -62,7 +64,14 @@ sub main {
                     }
                     $upd->finish();
 
-                    $dbh->commit();
+                    if ($opts{t}) {
+                        $dbh->rollback();
+                    } else {
+                        $dbh->commit();
+                    }
+                } elsif ($count) {
+                    #print "$ac, $count -> $s, $test\n";
+                    #print Dumper $articles if $ac > $count;
                 }
             }
 
@@ -78,6 +87,7 @@ sub usage {
     print <<EOF;
 Usage: $0
     [-c config file|etc/common.conf]
+    [-t test mode]
 EOF
 
     exit 1;
