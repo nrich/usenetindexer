@@ -22,7 +22,7 @@ sub main {
 
     my ($content,$filename) = UsenetIndexer::BuildNZB($dbh, $binary_id);
 
-    (my $basename = $filename) =~ s/\..+$//;
+    (my $basename = $filename) =~ s/\.[^.]+?$//;
 
     open my $fh, '>', "$basename.nzb" or die "Could not open $basename.nzb: $!\n";
     print $fh $content;    

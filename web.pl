@@ -147,7 +147,8 @@ get '/nzb' => sub {
     my $dbh = UsenetIndexer::GetDB($config);
 
     my ($content,$filename) = UsenetIndexer::BuildNZB($dbh, $id);
-    $filename =~ s/\..+$//;
+    $filename =~ s/\.[^.]+?$//;
+
 
     $dbh->disconnect();
 
