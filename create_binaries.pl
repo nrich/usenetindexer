@@ -27,6 +27,10 @@ sub main {
     my $articles = [];
     while (my ($article, $subject, $posted) = $sth->fetchrow_array()) {
         my ($number, $count) = $subject =~ /.*\((\d+)\/(\d+)\)/g;
+
+        $number ||= '';
+        $count ||= '';
+
         my $pattern = quotemeta $subject;
         my $find = quotemeta "\\($number\\\/$count\\)";
         my $replace = "\\(\\d+\\\/$count\\)";
@@ -52,11 +56,13 @@ sub main {
                     my ($filename) = $s =~ /\"([^"]+)\"/g;
                     $filename ||= $s;
 
-                    print STDERR $filename, "\n";
+                    print STDERR $filename;
                     my $ins = $dbh->prepare('INSERT INTO usenet_binary(name, posted) VALUES(?,?) RETURNING id');
                     $ins->execute($filename, $articles->[0]->[2]);
                     my ($binary_id) = $ins->fetchrow_array();
                     $ins->finish();
+
+                    print STDERR " -> $binary_id\n";
 
                     my $upd = $dbh->prepare('UPDATE usenet_article SET binary_id=? WHERE article=?');
                     for my $ref (@$articles) {

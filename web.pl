@@ -69,17 +69,6 @@ get '/search' => sub {
     my $config = $opts{c} || 'etc/common.conf';
     my $dbh = UsenetIndexer::GetDB($config);
 
-    my $sth = $dbh->prepare('SELECT id,name,posted FROM usenet_binary WHERE name @@ plainto_tsquery(?)');
-    $sth->execute($search);
-
-    my $content = [];
-    while (my ($id, $name, $posted) = $sth->fetchrow_array()) {
-        push @$content, [$id, $name, $posted];
-    }
-    $sth->finish();
-
-    $dbh->disconnect();
-
     my $rss = XML::RSS->new(version => '2.0');
     $rss->channel(
         title        => "",
@@ -87,14 +76,20 @@ get '/search' => sub {
         description  => "Search results",
     );
 
-    for my $file (@$content) {
+    my $sth = $dbh->prepare('SELECT id,name,posted FROM usenet_binary WHERE name @@ plainto_tsquery(?)');
+    $sth->execute($search);
+
+    while (my ($id, $name, $posted) = $sth->fetchrow_array()) {
         $rss->add_item(
-            title => $file->[1],
-            link => "http://$ENV{HOST}/nzb?id=$file->[0]",
-            pubDate => $file->[2],
-            description => $file->[1],
+            title => $name,
+            link => "http://$ENV{HOST}/nzb?id=$id",
+            pubDate => $posted,
+            description => $name,
         );
-    } 
+    }
+    $sth->finish();
+
+    $dbh->disconnect();
 
     return $rss->as_string(), type => 'application/rss+xml;';
 };
@@ -110,14 +105,6 @@ get '/latest' => sub {
     my $sth = $dbh->prepare('SELECT id,name,posted FROM usenet_binary ORDER BY posted DESC limit ?');
     $sth->execute($limit);
 
-    my $content = [];
-    while (my ($id, $name, $posted) = $sth->fetchrow_array()) {
-        push @$content, [$id, $name, $posted];
-    }
-    $sth->finish();
-
-    $dbh->disconnect();
-
     my $rss = XML::RSS->new(version => '2.0');
     $rss->channel(
         title        => "",
@@ -125,14 +112,18 @@ get '/latest' => sub {
         description  => "Latest",
     );
 
-    for my $file (@$content) {
+    while (my ($id, $name, $posted) = $sth->fetchrow_array()) {
         $rss->add_item(
-            title => $file->[1],
-            link => "http://$ENV{HOST}/nzb?id=$file->[0]",
-            pubDate => $file->[2],
-            description => $file->[1],
+            title => $name,
+            link => "http://$ENV{HOST}/nzb?id=$id",
+            pubDate => $posted,
+            description => $name,
         );
-    } 
+
+    }
+    $sth->finish();
+
+    $dbh->disconnect();
 
     return $rss->as_string(), type => 'application/rss+xml;';
 };
@@ -148,7 +139,6 @@ get '/nzb' => sub {
 
     my ($content,$filename) = UsenetIndexer::BuildNZB($dbh, $id);
     $filename =~ s/\.[^.]+?$//;
-
 
     $dbh->disconnect();
 
