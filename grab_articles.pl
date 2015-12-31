@@ -37,8 +37,8 @@ sub main {
 
     my $config = $opts{c} || 'etc/common.conf';
 
-    $articlecount = $opts{a} || 2000;
-    my $forks = $opts{p}||8;
+    $articlecount = $opts{a} || 1000;
+    my $forks = $opts{p}||10;
 
     my $dbh = UsenetIndexer::GetDB($config); 
 
@@ -124,8 +124,8 @@ sub usage {
 Usage: $0 <newsgroup name> 
     [-b backfill]
     [-c config file|etc/common.conf]
-    [-a article count|2000]
-    [-p process count|8] 
+    [-a article count|1000]
+    [-p process count|10] 
 EOF
 
     exit 1;

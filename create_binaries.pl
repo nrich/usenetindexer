@@ -42,51 +42,90 @@ sub main {
         if ($subject =~ /$test/) {
             push @$articles, [$article, $subject, $posted];
         } else {
-            if (@$articles) {
-                my $s = $articles->[0]->[1];
-
-#                next unless $s;
-
-                my ($number, $count) = $s =~ /.*\((\d+)\/(\d+)\)/g;
-                my $ac = scalar @$articles;
-
-                $count ||= 0;
-
-                if ($ac == $count) {
-                    my ($filename) = $s =~ /\"([^"]+)\"/g;
-                    $filename ||= $s;
-
-                    print STDERR $filename;
-                    my $ins = $dbh->prepare('INSERT INTO usenet_binary(name, posted) VALUES(?,?) RETURNING id');
-                    $ins->execute($filename, $articles->[0]->[2]);
-                    my ($binary_id) = $ins->fetchrow_array();
-                    $ins->finish();
-
-                    print STDERR " -> $binary_id\n";
-
-                    my $upd = $dbh->prepare('UPDATE usenet_article SET binary_id=? WHERE article=?');
-                    for my $ref (@$articles) {
-                        $upd->execute($binary_id, $ref->[0]);
-                    }
-                    $upd->finish();
-
-                    if ($opts{t}) {
-                        $dbh->rollback();
-                    } else {
-                        $dbh->commit();
-                    }
-                } elsif ($count) {
-                    #print "$ac, $count -> $s, $test\n";
-                    #print Dumper $articles if $ac > $count;
-                }
-            }
+            create_binary($dbh, $articles);
 
             $articles = [[$article, $subject, $posted]];
             $test = undef;
         }
     }
 
+    create_binary($dbh, $articles);
+
     $dbh->rollback();
+}
+
+sub create_binary {
+    my ($dbh, $articles) = @_;
+
+    if (@$articles) {
+        my $s = $articles->[0]->[1];
+
+        my ($number, $count) = $s =~ /.*\((\d+)\/(\d+)\)/g;
+        my $ac = scalar @$articles;
+
+        $count ||= 0;
+
+        if ($ac == $count) {
+            insert_binary($dbh, $articles);
+        } elsif ($count) {
+            if ($ac > $count) {
+                my %parts = ();
+
+    #            print "$ac, $count -> $s\n";
+
+                my @dedupe = ();
+
+                for my $ref (@$articles) {
+                    my $subject = $ref->[1];
+                    my ($num, undef) = $subject =~ /.*\((\d+)\/(\d+)\)/g;
+                    $num ||= 0;
+
+                    #print STDERR "$number, $count\n";
+
+                    next unless $num;
+                    next if $num > $count;
+                    next if $parts{$num};
+
+                    $parts{$num} = 1;
+
+                    push @dedupe, $ref;
+                }
+
+                if (scalar @dedupe == $count) {
+                    insert_binary($dbh, \@dedupe);
+                }
+            }
+        }
+    }
+}
+
+sub insert_binary {
+    my ($dbh, $articles) = @_;
+
+    my $s = $articles->[0]->[1];
+
+    my ($filename) = $s =~ /\"([^"]+)\"/g;
+    $filename ||= $s;
+
+    print STDERR $filename;
+    my $ins = $dbh->prepare('INSERT INTO usenet_binary(name, posted) VALUES(?,?) RETURNING id');
+    $ins->execute($filename, $articles->[0]->[2]);
+    my ($binary_id) = $ins->fetchrow_array();
+    $ins->finish();
+
+    print STDERR " -> $binary_id\n";
+
+    my $upd = $dbh->prepare('UPDATE usenet_article SET binary_id=? WHERE article=?');
+    for my $ref (@$articles) {
+        $upd->execute($binary_id, $ref->[0]);
+    }
+    $upd->finish();
+
+    if ($opts{t}) {
+        $dbh->rollback();
+    } else {
+        $dbh->commit();
+    }
 }
 
 sub usage {
