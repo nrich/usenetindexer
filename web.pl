@@ -7,6 +7,7 @@ use Getopt::Std qw/getopts/;
 use HTTP::Daemon qw//;
 use Data::Dumper qw/Dumper/;
 use XML::RSS qw//;
+use POSIX qw/:sys_wait_h/;
 
 use lib qw(lib);
 use UsenetIndexer qw//;
@@ -160,6 +161,8 @@ sub main {
         Timeout => 300,
     ) or die "Could not create HTTP listener: $!";
 
+    $SIG{CHLD} = \&REAPER;
+
     while (1) {
         while (keys %CHILDREN < 4) {
             spawn_child($daemon);
@@ -248,5 +251,14 @@ Usage: $0
 EOF
 
     exit 1;
+}
+
+sub REAPER {
+    while ((my $child = waitpid(-1, WNOHANG)) > 0) {
+        say("Reaping child $child\n");
+        delete $CHILDREN{$child};
+    }
+
+    $SIG{CHLD} = \&REAPER;
 }
 
