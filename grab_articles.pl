@@ -40,11 +40,13 @@ sub main {
     $articlecount = $opts{a} || 1000;
     my $forks = $opts{p}||10;
 
-    my $dbh = UsenetIndexer::GetDB($config); 
+    my $dbh = UsenetIndexer::GetDB($config, AutoCommit => 1); 
 
     my $sth = $dbh->prepare('SELECT min(article), max(article) FROM usenet_article');
     $sth->execute();
     my ($first_article, $last_article) = $sth->fetchrow_array();
+    $first_article ||= 0;
+    $last_article ||= 0;
     $sth->finish();
 
     my $nntp = UsenetIndexer::GetNNTP($config);
@@ -56,12 +58,13 @@ sub main {
     my $first = $opts{b} ? $first_art : $last_article;
 
 
-    if (not $opts{b} and $end - $first > ($articlecount * $forks)) {
-        my $total = $articlecount * $forks;
-        my $count = $end - $first;
-        die "Will not be able to grab $count in run, only grabbing $total articles\n";
+    if (not $end) {
+        if (not $opts{b} and $end - $first > ($articlecount * $forks)) {
+            my $total = $articlecount * $forks;
+            my $count = $end - $first;
+            die "Will not be able to grab $count in run, only grabbing $total articles\n";
+        }
     }
-
 
     my $newsgroup_id = UsenetIndexer::GetNewsGroupID($dbh, $newsgroup);
     $dbh->disconnect();
@@ -106,13 +109,22 @@ sub get {
 
     print STDERR "$id -> [$start,$end] -> $count\n";
 
-    $0 = "$0 $id";
+    my $name = $0;
+    $0 = "$name $id";
 
     my $sth = $dbh->prepare('INSERT INTO usenet_article(article,message,subject,posted,newsgroup_id) VALUES(?,?,?,?,?)');
 
     my $article_id = $start;
     while ($article_id <= $end) {
+        my $remaining = $end - $article_id;
+
+        $0 = "$name $id remaining $remaining";
         my $article = UsenetIndexer::GetArticle($nntp, $article_id);        
+
+        unless ($article) {
+            $article_id++;
+            next;
+        }
 
         $sth->execute($article_id, $article->{message}, $article->{subject}, $article->{posted}, $newsgroup_id);
         $article_id++;
