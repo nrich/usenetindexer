@@ -53,6 +53,12 @@ sub GetNewsGroupID {
     my ($id) = $sth->fetchrow_array();
     $sth->finish();
 
+    unless ($id) {
+        my $ins = $dbh->prepare('INSERT INTO usenet_newsgroup(name) VALUES(?) RETURNING id');
+        $ins->execute($newsgroup);
+        ($id) = $ins->fetchrow_array();
+    }
+
     return $id;
 }
 
@@ -88,7 +94,10 @@ sub GetArticle {
         } elsif ($line =~ /Subject: ([^\r]+)/) {
             $subject = $1;
         } elsif ($line =~ /Date: (.+)/) {
-            $posted = $1;
+            my $date = $1;
+
+            $date =~ s/\s+(\d+)$/ +${1}/;;
+            $posted = $date;
         }
     }
  
