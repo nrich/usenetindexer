@@ -172,7 +172,7 @@ sub main {
 
         foreach my $child (keys %CHILDREN) {
             unless (kill 0 => $child) {
-                say("Child $child has died");
+                print STDERR "Child $child has died";
                 delete $CHILDREN{$child};
             }
         }
@@ -255,7 +255,7 @@ EOF
 
 sub REAPER {
     while ((my $child = waitpid(-1, WNOHANG)) > 0) {
-        say("Reaping child $child\n");
+        print STDERR "Reaping child $child\n";
         delete $CHILDREN{$child};
     }
 
