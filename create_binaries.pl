@@ -45,7 +45,7 @@ sub main {
             create_binary($dbh, $articles);
 
             $articles = [[$article, $subject, $posted]];
-            $test = undef;
+            $test = $pattern;
         }
     }
 
