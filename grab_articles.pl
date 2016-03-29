@@ -79,6 +79,7 @@ sub main {
             $nntp->group($newsgroup);
 
             my $dbh = UsenetIndexer::GetDB($config, AutoCommit => 1);
+            $dbh->do("set client_encoding to 'latin1'");
 
             $SIG{CHLD} = 'IGNORE';
             my $start = $end - $articlecount;
