@@ -6,6 +6,7 @@ use warnings;
 use Getopt::Std qw/getopts/;
 use Data::Dumper qw/Dumper/;
 use POSIX qw/:sys_wait_h strftime/;
+use File::Basename qw/basename/;
 
 use lib qw(lib);
 use UsenetIndexer qw//;
@@ -22,7 +23,7 @@ sub REAPER {
 }
 
 my %opts = ();
-getopts('fhc:', \%opts);
+getopts('tfhc:p:a:', \%opts);
 $opts{h} and usage();
 main(@ARGV);
 
@@ -47,33 +48,49 @@ sub main {
     my $newsgroup_id = UsenetIndexer::GetNewsGroupID($dbh, $newsgroup);
 
     my @missing = ();
-    missing_between($dbh, $min, $max, $newsgroup_id);
+    missing_between($dbh, $min, $max, $newsgroup_id, \@missing);
 
     $dbh->disconnect();
 
+    print "Found ", scalar @missing, " gaps to retry\n";
+    $opts{t} and exit 0;
+
+
     $SIG{CHLD} = \&REAPER;
+
+    my $article_count = $opts{a} || 1000;
+    my $process_max = $opts{p} || 10;
 
     my @work = ();
     while (my $article_id = shift @missing) {
         push @work, $article_id;
 
-        if (scalar @work >= 100) {
+        if (scalar @work >= $article_count) {
             my $pid = fork();
 
             if ($pid) {
                 @work = ();
                 $CHILDREN{$pid} = 1;
 
-                while (scalar keys %CHILDREN >= 10) {
+                while (scalar keys %CHILDREN >= $process_max) {
                     sleep 1;
                 }
             } elsif (defined $pid) {
                 srand();
                 my $dbh = UsenetIndexer::GetDB($config, AutoCommit=>1);
+                $dbh->do("set client_encoding to 'latin1'");
+
                 my $nntp = UsenetIndexer::GetNNTP($config);
                 $nntp->group($newsgroup);
 
-                get_article($nntp, $dbh, $_, $newsgroup_id, $fill_missing) for @work;
+                my $name = basename $0;
+
+                while (my $article_id = shift @work) {
+                    my $remaining = $process_max - scalar @work;
+                    $0 = "$name remaining $remaining";
+                    get_article($nntp, $dbh, $article_id, $newsgroup_id, $fill_missing);
+                }
+
                 exit 0;
             } else {
                 die "Fork failed: $!\n";
@@ -83,6 +100,8 @@ sub main {
 
     if (@work) {
         my $dbh = UsenetIndexer::GetDB($config, AutoCommit=>1);
+        $dbh->do("set client_encoding to 'latin1'");
+
         my $nntp = UsenetIndexer::GetNNTP($config);
         $nntp->group($newsgroup);
         get_article($nntp, $dbh, $_, $newsgroup_id, $fill_missing) for @work;
@@ -130,12 +149,11 @@ sub get_article {
     my $article = UsenetIndexer::GetArticle($nntp, $article_id);
 
     if ($fill_missing) {
-        my $message = '_' x 254;
-        my @tokens = ('A' .. 'Z', 'a' .. 'z', '0' .. '9');
-        $message =~ s/_/$tokens[rand @tokens]/ge;
-        my $posted = strftime '%Y-%m-%d %H:%M:%S', localtime();
-
-        $article ||= {message => $message, subject => 'MISSING ARTICLE', posted => $posted};
+        $article ||= {
+            message => random_string(),
+            subject => 'MISSING ARTICLE',
+            posted => strftime('%Y-%m-%d %H:%M:%S', localtime),
+        };
     }
 
     return unless $article;
@@ -143,11 +161,26 @@ sub get_article {
     $sth->execute($article_id, $article->{message}, $article->{subject}, $article->{posted}, $newsgroup_id);
 }
 
+sub random_string {
+    my ($length, $tokens) = @_;
+
+    $length ||= 254;
+    $tokens ||= ['A' .. 'Z', 'a' .. 'z', '0' .. '9'];
+
+    my $message = '_' x $length;
+    $message =~ s/_/$tokens->[rand @$tokens]/ge;
+    
+    return $message;
+}
+
 sub usage {
     print <<EOF;
 Usage: $0 <newsgroup name>
     [-c config file|etc/common.conf]
     [-f fill missing articles with dummy data]
+    [-t test mode]
+    [-a article count|1000]
+    [-p process count|10] 
 EOF
 
     exit 1;
