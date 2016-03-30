@@ -38,23 +38,30 @@ sub main {
 
     my $dbh = UsenetIndexer::GetDB($config, AutoCommit=>1);
 
-    my $sth = $dbh->prepare('SELECT MIN(article), MAX(article) FROM usenet_article');
-    $sth->execute();
-    my ($min, $max) = $sth->fetchrow_array();
-    $sth->finish();
-
-    my $middle = int(($max-$min)/2);
-
     my $newsgroup_id = UsenetIndexer::GetNewsGroupID($dbh, $newsgroup);
 
+    my $sth = $dbh->prepare('SELECT article FROM usenet_article WHERE newsgroup_id=? ORDER BY article');
+    $sth->execute($newsgroup_id);
+
+    my $current = undef;
     my @missing = ();
-    missing_between($dbh, $min, $max, $newsgroup_id, \@missing);
+    while (my ($article) = $sth->fetchrow_array()) {
+        $current ||= $article;
+
+        while ($current != $article) {
+            push @missing, $current;
+            $current++;
+        }
+
+        $current++;
+    }
+
+    $sth->finish();
 
     $dbh->disconnect();
 
     print "Found ", scalar @missing, " gaps to retry\n";
     $opts{t} and exit 0;
-
 
     $SIG{CHLD} = \&REAPER;
 
@@ -62,6 +69,7 @@ sub main {
     my $process_max = $opts{p} || 10;
 
     my @work = ();
+    my $name = basename $0;
     while (my $article_id = shift @missing) {
         push @work, $article_id;
 
@@ -78,15 +86,14 @@ sub main {
             } elsif (defined $pid) {
                 srand();
                 my $dbh = UsenetIndexer::GetDB($config, AutoCommit=>1);
-                $dbh->do("set client_encoding to 'latin1'");
+                $dbh->do("SET client_encoding TO 'latin1'");
 
                 my $nntp = UsenetIndexer::GetNNTP($config);
                 $nntp->group($newsgroup);
 
-                my $name = basename $0;
 
                 while (my $article_id = shift @work) {
-                    my $remaining = $process_max - scalar @work;
+                    my $remaining = scalar @work;
                     $0 = "$name remaining $remaining";
                     get_article($nntp, $dbh, $article_id, $newsgroup_id, $fill_missing);
                 }
@@ -100,44 +107,22 @@ sub main {
 
     if (@work) {
         my $dbh = UsenetIndexer::GetDB($config, AutoCommit=>1);
-        $dbh->do("set client_encoding to 'latin1'");
+        $dbh->do("SET client_encoding TO 'latin1'");
 
         my $nntp = UsenetIndexer::GetNNTP($config);
         $nntp->group($newsgroup);
-        get_article($nntp, $dbh, $_, $newsgroup_id, $fill_missing) for @work;
+
+        while (my $article_id = shift @work) {
+            my $remaining = scalar @work;
+            $0 = "$name remaining $remaining";
+            get_article($nntp, $dbh, $article_id, $newsgroup_id, $fill_missing);
+        }
     }
+
+    $0 = "$name waiting";
 
     while (%CHILDREN) {
         sleep 1;
-    }
-}
-
-sub missing_between {
-    my ($dbh, $min, $max, $newsgroup_id, $missing) = @_;
-
-    my $sth = $dbh->prepare('SELECT COUNT(1) FROM usenet_article WHERE article >= ? AND article <= ?');
-    $sth->execute($min, $max);
-    my ($count) = $sth->fetchrow_array();
-
-    if ($max-$min <= 200) {
-        if ($count < $max-$min) {
-            for my $article ($min .. $max) {
-                my $exists = $dbh->prepare('SELECT COUNT(1) FROM usenet_article WHERE article = ?');
-                $exists->execute($article);
-                my ($article_exists) = $exists->fetchrow_array();
-                $exists->finish();
-
-                push @$missing, $article unless $article_exists;
-            }
-        }
-        return;
-    }
-
-    if ($count != ($max-$min)) {
-        my $middle = int(($max-$min)/2);
-
-        missing_between($dbh, $min, $min+$middle, $newsgroup_id, $missing);
-        missing_between($dbh, $min+$middle, $max, $newsgroup_id, $missing);
     }
 }
 
