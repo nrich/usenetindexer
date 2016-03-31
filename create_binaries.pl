@@ -16,12 +16,27 @@ $opts{h} and usage();
 main(@ARGV);
 
 sub main {
+    my ($newsgroup) = @_;
+
     my $config = $opts{c} || 'etc/common.conf';
 
     my $dbh = UsenetIndexer::GetDB($config);
+   
+    my $sth = $newsgroup ? $dbh->prepare('SELECT id FROM usenet_newsgroup WHERE name=?') : $dbh->prepare('SELECT id FROM usenet_newsgroup');
+    $sth->execute(@ARGV);
 
-    my $sth = $dbh->prepare('SELECT article,subject,posted FROM usenet_article WHERE binary_id IS NULL ORDER BY subject');
-    $sth->execute();
+    while (my ($newsgroup_id) = $sth->fetchrow_array()) {
+        process_newsgroup($dbh, $newsgroup_id);
+    }
+    $sth->finish();
+
+    $dbh->rollback();
+}
+
+sub process_newsgroup {
+    my ($dbh, $newsgroup_id) = @_;
+    my $sth = $dbh->prepare('SELECT article,subject,posted FROM usenet_article WHERE binary_id IS NULL AND newsgroup_id=? ORDER BY subject');
+    $sth->execute($newsgroup_id);
 
     my $test = '';
     my $articles = [];
@@ -50,8 +65,6 @@ sub main {
     }
 
     create_binary($dbh, $articles);
-
-    $dbh->rollback();
 }
 
 sub create_binary {
@@ -71,16 +84,12 @@ sub create_binary {
             if ($ac > $count) {
                 my %parts = ();
 
-    #            print "$ac, $count -> $s\n";
-
                 my @dedupe = ();
 
                 for my $ref (@$articles) {
                     my $subject = $ref->[1];
                     my ($num, undef) = $subject =~ /.*\((\d+)\/(\d+)\)/g;
                     $num ||= 0;
-
-                    #print STDERR "$number, $count\n";
 
                     next unless $num;
                     next if $num > $count;
