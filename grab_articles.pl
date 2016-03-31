@@ -6,6 +6,7 @@ use warnings;
 use Getopt::Std qw/getopts/;
 use Data::Dumper qw/Dumper/;
 use POSIX qw/:sys_wait_h strftime/;
+use File::Basename qw/basename/;
 
 use lib qw(lib);
 use UsenetIndexer qw//;
@@ -110,7 +111,7 @@ sub get {
 
     print STDERR "$id -> [$start,$end] -> $count\n";
 
-    my $name = $0;
+    my $name = basename $0;
     $0 = "$name $id";
 
     my $sth = $dbh->prepare('INSERT INTO usenet_article(article,message,subject,posted,newsgroup_id) VALUES(?,?,?,?,?)');
