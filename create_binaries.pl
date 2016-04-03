@@ -22,21 +22,26 @@ sub main {
 
     my $dbh = UsenetIndexer::GetDB($config);
    
-    my $sth = $newsgroup ? $dbh->prepare('SELECT id FROM usenet_newsgroup WHERE name=?') : $dbh->prepare('SELECT id FROM usenet_newsgroup');
+    my $sth = $newsgroup ? $dbh->prepare('SELECT id,name FROM usenet_newsgroup WHERE name=?') : $dbh->prepare('SELECT id,name FROM usenet_newsgroup');
     $sth->execute(@ARGV);
 
-    while (my ($newsgroup_id) = $sth->fetchrow_array()) {
-        process_newsgroup($dbh, $newsgroup_id);
+    while (my ($newsgroup_id,$name) = $sth->fetchrow_array()) {
+        process_newsgroup($dbh, $newsgroup_id, $name);
     }
     $sth->finish();
 
     $dbh->rollback();
+
 }
 
 sub process_newsgroup {
-    my ($dbh, $newsgroup_id) = @_;
+    my ($dbh, $newsgroup_id, $newsgroup) = @_;
     my $sth = $dbh->prepare('SELECT article,subject,posted FROM usenet_article WHERE binary_id IS NULL AND newsgroup_id=? ORDER BY subject');
     $sth->execute($newsgroup_id);
+
+    my $incomplete = 0;
+    my $discussion = 0;
+    my $processed = 0;
 
     my $test = '';
     my $articles = [];
@@ -57,18 +62,20 @@ sub process_newsgroup {
         if ($subject =~ /$test/) {
             push @$articles, [$article, $subject, $posted];
         } else {
-            create_binary($dbh, $articles);
+            create_binary($dbh, $articles, \$incomplete, \$discussion, \$processed);
 
             $articles = [[$article, $subject, $posted]];
             $test = $pattern;
         }
     }
 
-    create_binary($dbh, $articles);
+    create_binary($dbh, $articles, \$incomplete, \$discussion, \$processed);
+
+    print STDERR "$newsgroup\n\tProcessed: $processed, Incomplete: $incomplete, Discussion: $discussion\n";
 }
 
 sub create_binary {
-    my ($dbh, $articles) = @_;
+    my ($dbh, $articles, $incomplete, $discussion, $processed) = @_;
 
     if (@$articles) {
         my $s = $articles->[0]->[1];
@@ -80,6 +87,7 @@ sub create_binary {
 
         if ($ac == $count) {
             insert_binary($dbh, $articles);
+            $processed += $ac;
         } elsif ($count) {
             if ($ac > $count) {
                 my %parts = ();
@@ -102,8 +110,15 @@ sub create_binary {
 
                 if (scalar @dedupe == $count) {
                     insert_binary($dbh, \@dedupe);
+                    $$processed += $ac;
+                } else {
+                    $$incomplete += $ac;
                 }
+            } else {
+                $$incomplete += $ac;
             }
+        } else {
+            $$discussion += $ac;
         }
     }
 }
@@ -124,10 +139,10 @@ sub insert_binary {
 
     print STDERR " -> $binary_id\n";
 
-    my $upd = $dbh->prepare('UPDATE usenet_article SET binary_id=? WHERE article=?');
-    for my $ref (@$articles) {
-        $upd->execute($binary_id, $ref->[0]);
-    }
+    my $article_ids = join(',', map {"($_->[0])"} @$articles);
+
+    my $upd = $dbh->prepare("UPDATE usenet_article SET binary_id=? WHERE article = ANY(VALUES $article_ids)");
+    $upd->execute($binary_id);
     $upd->finish();
 
     if ($opts{t}) {
