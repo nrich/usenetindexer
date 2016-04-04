@@ -42,6 +42,7 @@ sub process_newsgroup {
     my $incomplete = 0;
     my $discussion = 0;
     my $processed = 0;
+    my $binaries = 0;
 
     my $test = '';
     my $articles = [];
@@ -62,20 +63,20 @@ sub process_newsgroup {
         if ($subject =~ /$test/) {
             push @$articles, [$article, $subject, $posted];
         } else {
-            create_binary($dbh, $articles, \$incomplete, \$discussion, \$processed);
+            create_binary($dbh, $articles, \$incomplete, \$discussion, \$processed, \$binaries);
 
             $articles = [[$article, $subject, $posted]];
             $test = $pattern;
         }
     }
 
-    create_binary($dbh, $articles, \$incomplete, \$discussion, \$processed);
+    create_binary($dbh, $articles, \$incomplete, \$discussion, \$processed, \$binaries);
 
-    print STDERR "$newsgroup\n\tProcessed: $processed, Incomplete: $incomplete, Discussion: $discussion\n";
+    print STDERR "$newsgroup\n\tProcessed: $processed, Incomplete: $incomplete, Discussion: $discussion, Binaries: $binaries\n";
 }
 
 sub create_binary {
-    my ($dbh, $articles, $incomplete, $discussion, $processed) = @_;
+    my ($dbh, $articles, $incomplete, $discussion, $processed, $binaries) = @_;
 
     if (@$articles) {
         my $s = $articles->[0]->[1];
@@ -87,7 +88,8 @@ sub create_binary {
 
         if ($ac == $count) {
             insert_binary($dbh, $articles);
-            $processed += $ac;
+            $$processed += $ac;
+            $$binaries++;
         } elsif ($count) {
             if ($ac > $count) {
                 my %parts = ();
@@ -111,6 +113,7 @@ sub create_binary {
                 if (scalar @dedupe == $count) {
                     insert_binary($dbh, \@dedupe);
                     $$processed += $ac;
+                    $$binaries++;
                 } else {
                     $$incomplete += $ac;
                 }
@@ -154,7 +157,7 @@ sub insert_binary {
 
 sub usage {
     print <<EOF;
-Usage: $0
+Usage: $0 [newsgroup|all newsgroups]
     [-c config file|etc/common.conf]
     [-t test mode]
 EOF
