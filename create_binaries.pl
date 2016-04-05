@@ -39,10 +39,12 @@ sub process_newsgroup {
     my $sth = $dbh->prepare('SELECT article,subject,posted FROM usenet_article WHERE binary_id IS NULL AND newsgroup_id=? ORDER BY subject');
     $sth->execute($newsgroup_id);
 
-    my $incomplete = 0;
-    my $discussion = 0;
-    my $processed = 0;
-    my $binaries = 0;
+    my $report = {
+        incomplete => 0,
+        discussion => 0,
+        processed => 0,
+        binaries => 0,
+    };
 
     my $test = '';
     my $articles = [];
@@ -63,20 +65,20 @@ sub process_newsgroup {
         if ($subject =~ /$test/) {
             push @$articles, [$article, $subject, $posted];
         } else {
-            create_binary($dbh, $articles, \$incomplete, \$discussion, \$processed, \$binaries);
+            create_binary($dbh, $articles, $report);
 
             $articles = [[$article, $subject, $posted]];
             $test = $pattern;
         }
     }
 
-    create_binary($dbh, $articles, \$incomplete, \$discussion, \$processed, \$binaries);
+    create_binary($dbh, $articles, $report);
 
-    print STDERR "$newsgroup\n\tProcessed: $processed, Incomplete: $incomplete, Discussion: $discussion, Binaries: $binaries\n";
+    print STDERR "$newsgroup\n\tProcessed: $report->{processed}, Incomplete: $report->{incomplete}, Discussion: $report->{discussion}, Binaries: $report->{binaries}\n";
 }
 
 sub create_binary {
-    my ($dbh, $articles, $incomplete, $discussion, $processed, $binaries) = @_;
+    my ($dbh, $articles, $report) = @_;
 
     if (@$articles) {
         my $s = $articles->[0]->[1];
@@ -88,8 +90,8 @@ sub create_binary {
 
         if ($ac == $count) {
             insert_binary($dbh, $articles);
-            $$processed += $ac;
-            $$binaries++;
+            $report->{processed} += $ac;
+            $report->{binaries}++;
         } elsif ($count) {
             if ($ac > $count) {
                 my %parts = ();
@@ -112,16 +114,16 @@ sub create_binary {
 
                 if (scalar @dedupe == $count) {
                     insert_binary($dbh, \@dedupe);
-                    $$processed += $ac;
-                    $$binaries++;
+                    $report->{processed} += $ac;
+                    $report->{binaries}++;
                 } else {
-                    $$incomplete += $ac;
+                    $report->{incomplete} += $ac;
                 }
             } else {
-                $$incomplete += $ac;
+                $report->{incomplete} += $ac;
             }
         } else {
-            $$discussion += $ac;
+            $report->{discussion} += $ac;
         }
     }
 }
