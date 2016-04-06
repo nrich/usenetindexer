@@ -62,7 +62,7 @@ sub process_newsgroup {
 
         $test ||= $pattern;
 
-        if ($subject =~ /$test/) {
+        if ($subject =~ /^$test$/) {
             push @$articles, [$article, $subject, $posted];
         } else {
             create_binary($dbh, $articles, $report);
