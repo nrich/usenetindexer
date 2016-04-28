@@ -19,6 +19,8 @@ CREATE TABLE usenet_binary (
     PRIMARY KEY(id)    
 );
 
+CREATE INDEX usenet_binary_name_idx ON usenet_binary USING gin(to_tsvector('english', name));
+
 CREATE TABLE usenet_article (
     id bigserial NOT NULL,
     article integer NOT NULL,
@@ -29,9 +31,10 @@ CREATE TABLE usenet_article (
     binary_id integer,
     PRIMARY KEY(id),
     FOREIGN KEY(newsgroup_id) REFERENCES usenet_newsgroup(id),
-    FOREIGN KEY(binary_id) REFERENCES usenet_binary(id)
+    FOREIGN KEY(binary_id) REFERENCES usenet_binary(id) ON DELETE SET NULL
 );
 
 CREATE UNIQUE INDEX usenet_article_message_idx ON usenet_article(message);
 CREATE UNIQUE INDEX usenet_article_newsgroup_article_idx ON usenet_article(newsgroup_id, article);
 CREATE INDEX usenet_article_bin_idx ON usenet_article(binary_id);
+CREATE INDEX usenet_article_newsgroup_idx ON usenet_article(newsgroup_id);
