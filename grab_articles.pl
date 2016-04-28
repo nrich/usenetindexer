@@ -58,7 +58,7 @@ sub main {
     my $end = $opts{b} ? $first_article : $last_art;
     my $first = $opts{b} ? $first_art : $last_article;
 
-    if (not $end) {
+    if ($end) {
         if (not $opts{b} and $end - $first > ($articlecount * $forks)) {
             my $total = $articlecount * $forks;
             my $count = $end - $first;
