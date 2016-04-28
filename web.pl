@@ -77,7 +77,7 @@ get '/search' => sub {
         description  => "Search results",
     );
 
-    my $sth = $dbh->prepare('SELECT id,name,posted FROM usenet_binary WHERE name @@ plainto_tsquery(?)');
+    my $sth = $dbh->prepare("SELECT id,name,posted FROM usenet_binary WHERE to_tsvector('english', name) @@ to_tsquery('english', ?)");
     $sth->execute($search);
 
     while (my ($id, $name, $posted) = $sth->fetchrow_array()) {
