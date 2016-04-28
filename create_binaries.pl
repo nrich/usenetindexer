@@ -31,7 +31,6 @@ sub main {
     $sth->finish();
 
     $dbh->rollback();
-
 }
 
 sub process_newsgroup {
@@ -135,6 +134,7 @@ sub insert_binary {
 
     my ($filename) = $s =~ /\"([^"]+)\"/g;
     $filename ||= $s;
+    $filename =~ s/\s*\(\d+\/\d+\)\s*$//;
 
     print STDERR $filename;
     my $ins = $dbh->prepare('INSERT INTO usenet_binary(name, posted) VALUES(?,?) RETURNING id');
@@ -144,9 +144,19 @@ sub insert_binary {
 
     print STDERR " -> $binary_id\n";
 
-    my $article_ids = join(',', map {"($_->[0])"} @$articles);
+    my ($article_ids, $upd);
+    my $article_size = scalar @$articles;
+    if ($article_size > 20) {
+        $article_ids = join(',', map {"($_->[0])"} @$articles);
+        $upd = $dbh->prepare("UPDATE usenet_article SET binary_id=? WHERE article = ANY(VALUES $article_ids)");
+    } elsif ($article_size > 10) {
+        $article_ids = join(',', map {"$_->[0]"} @$articles);
+        $upd = $dbh->prepare("UPDATE usenet_article SET binary_id=? WHERE article = ANY(ARRAY [$article_ids])");
+    } else {
+        $article_ids = join(',', map {"$_->[0]"} @$articles);
+        $upd = $dbh->prepare("UPDATE usenet_article SET binary_id=? WHERE article IN ($article_ids)");
+    }
 
-    my $upd = $dbh->prepare("UPDATE usenet_article SET binary_id=? WHERE article = ANY(VALUES $article_ids)");
     $upd->execute($binary_id);
     $upd->finish();
 
