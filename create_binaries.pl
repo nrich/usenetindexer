@@ -145,11 +145,11 @@ sub insert_binary {
     print STDERR " -> $binary_id\n";
 
     my ($article_ids, $upd);
-    my $article_size = scalar @$articles;
-    if ($article_size > 20) {
+    my $article_count = scalar @$articles;
+    if ($article_count > 20) {
         $article_ids = join(',', map {"($_->[0])"} @$articles);
         $upd = $dbh->prepare("UPDATE usenet_article SET binary_id=? WHERE article = ANY(VALUES $article_ids)");
-    } elsif ($article_size > 10) {
+    } elsif ($article_count > 10) {
         $article_ids = join(',', map {"$_->[0]"} @$articles);
         $upd = $dbh->prepare("UPDATE usenet_article SET binary_id=? WHERE article = ANY(ARRAY [$article_ids])");
     } else {
