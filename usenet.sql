@@ -23,7 +23,7 @@ CREATE INDEX usenet_binary_name_idx ON usenet_binary USING gin(to_tsvector('engl
 
 CREATE TABLE usenet_article (
     id bigserial NOT NULL,
-    article integer NOT NULL,
+    article bigint NOT NULL,
     message varchar(254) NOT NULL,
     subject text NOT NULL,
     posted timestamp NOT NULL,
