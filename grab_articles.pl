@@ -42,9 +42,10 @@ sub main {
     my $forks = $opts{p}||10;
 
     my $dbh = UsenetIndexer::GetDB($config, AutoCommit => 1); 
+    my $newsgroup_id = UsenetIndexer::GetNewsGroupID($dbh, $newsgroup);
 
-    my $sth = $dbh->prepare('SELECT min(article), max(article) FROM usenet_article');
-    $sth->execute();
+    my $sth = $dbh->prepare('SELECT min(article), max(article) FROM usenet_article WHERE newsgroup_id=?');
+    $sth->execute($newsgroup_id);
     my ($first_article, $last_article) = $sth->fetchrow_array();
     $first_article ||= 0;
     $last_article ||= 0;
@@ -56,7 +57,7 @@ sub main {
     undef $nntp;
 
     my $end = $opts{b} ? $first_article : $last_art;
-    my $first = $opts{b} ? $first_art : $last_article;
+    my $first = $opts{b} ? $first_art : $last_article||($end - $articlecount * $forks);
 
     if ($end) {
         if (not $opts{b} and $end - $first > ($articlecount * $forks)) {
@@ -66,7 +67,6 @@ sub main {
         }
     }
 
-    my $newsgroup_id = UsenetIndexer::GetNewsGroupID($dbh, $newsgroup);
     $dbh->disconnect();
 
     for my $id (1 .. $forks) {
