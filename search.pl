@@ -30,7 +30,7 @@ sub main {
         $search = "${search}&($optional)";
     }
 
-    my $sth = $dbh->prepare("SELECT id,name,posted FROM usenet_binary WHERE to_tsvector('english', name) @@ to_tsquery('english', ?)");
+    my $sth = $dbh->prepare("SELECT id,name,posted FROM usenet_binary WHERE to_tsvector('english', name) @@ to_tsquery('english', ?) ORDER BY posted");
     $sth->execute($search);
 
     while (my ($id, $name, $posted) = $sth->fetchrow_array()) {
