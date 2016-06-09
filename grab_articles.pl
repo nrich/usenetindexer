@@ -5,13 +5,11 @@ use warnings;
 
 use Getopt::Std qw/getopts/;
 use Data::Dumper qw/Dumper/;
-use POSIX qw/:sys_wait_h strftime/;
+use POSIX qw/:sys_wait_h strftime ceil floor/;
 use File::Basename qw/basename/;
 
 use lib qw(lib);
 use UsenetIndexer qw//;
-
-my $articlecount;
 
 my %CHILDREN = ();
 my %opts = ();
@@ -25,7 +23,7 @@ sub REAPER {
     $SIG{CHLD} = \&REAPER;
 }
 
-getopts('hbc:p:a:', \%opts);
+getopts('hbc:p:a:o', \%opts);
 $opts{h} and usage();
 main(@ARGV);
 
@@ -38,7 +36,7 @@ sub main {
 
     my $config = $opts{c} || 'etc/common.conf';
 
-    $articlecount = $opts{a} || 1000;
+    my $articlecount = $opts{a} || 1000;
     my $forks = $opts{p}||10;
 
     my $dbh = UsenetIndexer::GetDB($config, AutoCommit => 1); 
@@ -58,6 +56,23 @@ sub main {
 
     my $end = $opts{b} ? $first_article : $last_art;
     my $first = $opts{b} ? $first_art : $last_article||($end - $articlecount * $forks);
+
+    if ($opts{o}) {
+        die "Cannot use -o with -f, -a or -b\n" if $opts{b}||$opts{f}||$opts{a};
+
+        my $count = $end - $first;
+
+        $forks = 20;
+
+        while ($forks > 1) {
+            $articlecount = ceil($count/$forks);
+
+            last if $articlecount > 30;
+            $forks--;
+        }
+
+        $articlecount = $count if $forks == 1;
+    }
 
     if ($end) {
         if (not $opts{b} and $end - $first > ($articlecount * $forks)) {
@@ -135,6 +150,7 @@ sub get {
 sub usage {
     print <<EOF;
 Usage: $0 <newsgroup name> 
+    [-o optimal grab]
     [-b backfill]
     [-c config file|etc/common.conf]
     [-a article count|1000]
