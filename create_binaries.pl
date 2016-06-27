@@ -35,7 +35,7 @@ sub main {
 
 sub process_newsgroup {
     my ($dbh, $newsgroup_id, $newsgroup) = @_;
-    my $sth = $dbh->prepare('SELECT article,subject,posted FROM usenet_article WHERE binary_id IS NULL AND newsgroup_id=? ORDER BY subject');
+    my $sth = $dbh->prepare('SELECT id,subject,posted FROM usenet_article WHERE binary_id IS NULL AND newsgroup_id=? ORDER BY subject');
     $sth->execute($newsgroup_id);
 
     my $report = {
@@ -148,13 +148,13 @@ sub insert_binary {
     my $article_count = scalar @$articles;
     if ($article_count > 20) {
         $article_ids = join(',', map {"($_->[0])"} @$articles);
-        $upd = $dbh->prepare("UPDATE usenet_article SET binary_id=? WHERE article = ANY(VALUES $article_ids)");
+        $upd = $dbh->prepare("UPDATE usenet_article SET binary_id=? WHERE id = ANY(VALUES $article_ids)");
     } elsif ($article_count > 10) {
         $article_ids = join(',', map {"$_->[0]"} @$articles);
-        $upd = $dbh->prepare("UPDATE usenet_article SET binary_id=? WHERE article = ANY(ARRAY [$article_ids])");
+        $upd = $dbh->prepare("UPDATE usenet_article SET binary_id=? WHERE id = ANY(ARRAY [$article_ids])");
     } else {
         $article_ids = join(',', map {"$_->[0]"} @$articles);
-        $upd = $dbh->prepare("UPDATE usenet_article SET binary_id=? WHERE article IN ($article_ids)");
+        $upd = $dbh->prepare("UPDATE usenet_article SET binary_id=? WHERE id IN ($article_ids)");
     }
 
     $upd->execute($binary_id);
