@@ -129,7 +129,7 @@ sub main {
 sub get_article {
     my ($nntp, $dbh, $article_id, $newsgroup_id, $fill_missing) = @_;
 
-    my $sth = $dbh->prepare('INSERT INTO usenet_article(article,message,subject,posted,newsgroup_id) VALUES(?,?,?,?,?)');
+    my $sth = $dbh->prepare('INSERT INTO usenet_article(article,message,subject,posted,bytes,newsgroup_id) VALUES(?,?,?,?,?,?)');
 
     my $article = UsenetIndexer::GetArticle($nntp, $article_id);
 
@@ -143,7 +143,7 @@ sub get_article {
 
     return unless $article;
 
-    $sth->execute($article_id, $article->{message}, $article->{subject}, $article->{posted}, $newsgroup_id);
+    $sth->execute($article_id, $article->{message}, $article->{subject}, $article->{posted}, $article->{bytes}, $newsgroup_id);
 }
 
 sub random_string {

@@ -27,6 +27,7 @@ CREATE TABLE usenet_article (
     message varchar(254) NOT NULL,
     subject text NOT NULL,
     posted timestamp NOT NULL,
+    bytes integer NOT NULL DEFAULT 1,
     newsgroup_id integer NOT NULL,
     binary_id integer,
     PRIMARY KEY(id),

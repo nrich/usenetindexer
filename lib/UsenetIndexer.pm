@@ -85,6 +85,7 @@ sub GetArticle {
     my $subject = '';
     my $message = '';
     my $posted = '';
+    my $bytes = 0;
 
     for my $line (@$lines) {
         chomp $line;
@@ -98,6 +99,8 @@ sub GetArticle {
 
             $date =~ s/\s+(\d+)$/ +${1}/;;
             $posted = $date;
+        } elsif ($line =~ /X-Received-Bytes: (\d+)/) {
+            $bytes = $1;
         }
     }
  
@@ -106,6 +109,7 @@ sub GetArticle {
         message => $message,
         subject => $subject,
         posted => $posted,
+        bytes => $bytes,
     };
 }
 
@@ -117,13 +121,13 @@ sub BuildNZB {
     my $number = 1;
     my $segments = '';
 
-    my $sth = $dbh->prepare('SELECT newsgroup_id,message FROM usenet_article WHERE binary_id=? ORDER BY subject');
+    my $sth = $dbh->prepare('SELECT newsgroup_id,message,bytes FROM usenet_article WHERE binary_id=? ORDER BY subject');
     $sth->execute($binary_id);
 
-    while (my ($newsgroup_id, $message) = $sth->fetchrow_array()) {
+    while (my ($newsgroup_id, $message, $bytes) = $sth->fetchrow_array()) {
         $newsgroup ||= GetNewsGroupName($dbh, $newsgroup_id);
 
-        $segments .= "  <segment bytes=\"100\" number=\"$number\">$message</segment>\n";
+        $segments .= "  <segment bytes=\"$bytes\" number=\"$number\">$message</segment>\n";
         $number++;
     }
 

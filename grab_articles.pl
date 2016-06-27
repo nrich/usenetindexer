@@ -37,7 +37,7 @@ sub main {
     my $config = $opts{c} || 'etc/common.conf';
 
     my $articlecount = $opts{a} || 1000;
-    my $forks = $opts{p}||10;
+    my $forks = $opts{p}||20;
 
     my $dbh = UsenetIndexer::GetDB($config, AutoCommit => 1); 
     my $newsgroup_id = UsenetIndexer::GetNewsGroupID($dbh, $newsgroup);
@@ -58,11 +58,9 @@ sub main {
     my $first = $opts{b} ? $first_art : $last_article||($end - $articlecount * $forks);
 
     if ($opts{o}) {
-        die "Cannot use -o with -f, -a or -b\n" if $opts{b}||$opts{f}||$opts{a};
+        die "Cannot use -o with -a or -b\n" if $opts{b}||$opts{f}||$opts{a};
 
         my $count = $end - $first;
-
-        $forks = 20;
 
         while ($forks > 1) {
             $articlecount = ceil($count/$forks);
@@ -128,7 +126,7 @@ sub get {
     my $name = basename $0;
     $0 = "$name $id";
 
-    my $sth = $dbh->prepare('INSERT INTO usenet_article(article,message,subject,posted,newsgroup_id) VALUES(?,?,?,?,?)');
+    my $sth = $dbh->prepare('INSERT INTO usenet_article(article,message,subject,posted,bytes,newsgroup_id) VALUES(?,?,?,?,?,?)');
 
     my $article_id = $start;
     while ($article_id <= $end) {
@@ -142,7 +140,7 @@ sub get {
             next;
         }
 
-        $sth->execute($article_id, $article->{message}, $article->{subject}, $article->{posted}, $newsgroup_id);
+        $sth->execute($article_id, $article->{message}, $article->{subject}, $article->{posted}, $article->{bytes}, $newsgroup_id);
         $article_id++;
     }
 }
@@ -154,7 +152,7 @@ Usage: $0 <newsgroup name>
     [-b backfill]
     [-c config file|etc/common.conf]
     [-a article count|1000]
-    [-p process count|10] 
+    [-p process count|20] 
 EOF
 
     exit 1;
