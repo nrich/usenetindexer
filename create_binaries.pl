@@ -102,7 +102,7 @@ sub create_binary {
                     my ($num, undef) = $subject =~ /.*\((\d+)\/(\d+)\)/g;
                     $num ||= 0;
 
-                    next unless $num;
+                    next unless int $num;
                     next if $num > $count;
                     next if $parts{$num};
 
@@ -132,11 +132,15 @@ sub insert_binary {
 
     my $s = $articles->[0]->[1];
 
-    my ($filename) = $s =~ /\"([^"]+)\"/g;
+    my (@data) = $s =~ /\"([^"]+)\"/g;
+    my $filename = pop @data;
+
     $filename ||= $s;
     $filename =~ s/\s*\(\d+\/\d+\)\s*$//;
+    $filename =~ s/^\s+//g;
+    $filename =~ s/\s+$//g;
 
-    print STDERR $filename;
+    print STDERR "$filename";
     my $ins = $dbh->prepare('INSERT INTO usenet_binary(name, posted) VALUES(?,?) RETURNING id');
     $ins->execute($filename, $articles->[0]->[2]);
     my ($binary_id) = $ins->fetchrow_array();

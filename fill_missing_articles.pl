@@ -138,6 +138,7 @@ sub get_article {
             message => random_string(),
             subject => 'MISSING ARTICLE',
             posted => strftime('%Y-%m-%d %H:%M:%S', localtime),
+            bytes => 0,
         };
     }
 

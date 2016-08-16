@@ -127,6 +127,12 @@ sub BuildNZB {
     while (my ($newsgroup_id, $message, $bytes) = $sth->fetchrow_array()) {
         $newsgroup ||= GetNewsGroupName($dbh, $newsgroup_id);
 
+        $message =~ s/&/&amp;/g;
+        $message =~ s/</&lt;/g;
+        $message =~ s/>/&gt;/g;
+        $message =~ s/"/&quote;/g;
+        $message =~ s/'/&#39;/g;
+
         $segments .= "  <segment bytes=\"$bytes\" number=\"$number\">$message</segment>\n";
         $number++;
     }
