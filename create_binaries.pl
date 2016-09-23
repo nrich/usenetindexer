@@ -35,7 +35,7 @@ sub main {
 
 sub process_newsgroup {
     my ($dbh, $newsgroup_id, $newsgroup) = @_;
-    my $sth = $dbh->prepare('SELECT id,subject,posted FROM usenet_article WHERE binary_id IS NULL AND newsgroup_id=? ORDER BY subject');
+    my $sth = $dbh->prepare('SELECT id,subject,posted FROM usenet_article WHERE binary_id IS NULL AND newsgroup_id=?');
     $sth->execute($newsgroup_id);
 
     my $report = {
@@ -47,7 +47,17 @@ sub process_newsgroup {
 
     my $test = '';
     my $articles = [];
+
+    my @unsorted = ();
     while (my ($article, $subject, $posted) = $sth->fetchrow_array()) {
+        push @unsorted, [$article, $subject, $posted];
+    }
+
+    my @sorted = sort {$a->[1] cmp $b->[1]} @unsorted;
+
+    while (my $article_data = shift @sorted) {
+        my ($article, $subject, $posted) = @$article_data;
+
         my ($number, $count) = $subject =~ /.*\((\d+)\/(\d+)\)/g;
 
         $number ||= '';
