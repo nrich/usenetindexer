@@ -90,7 +90,7 @@ sub GetArticle {
     for my $line (@$lines) {
         chomp $line;
 
-        if ($line =~ /Message-ID: <([^<>]+)>/) {
+        if ($line =~ /Message-I[Dd]: <([^<>]+)>/) {
             $message = $1;
         } elsif ($line =~ /Subject: ([^\r]+)/) {
             $subject = $1;
