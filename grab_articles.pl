@@ -140,6 +140,11 @@ sub get {
             next;
         }
 
+        unless ($article->{message}) {
+            $article_id++;
+            next;
+        }
+
         $sth->execute($article_id, $article->{message}, $article->{subject}, $article->{posted}, $article->{bytes}, $newsgroup_id);
         $article_id++;
     }
