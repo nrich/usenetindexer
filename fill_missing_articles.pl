@@ -23,7 +23,7 @@ sub REAPER {
 }
 
 my %opts = ();
-getopts('tfhc:p:a:', \%opts);
+getopts('tfhc:p:a:s:', \%opts);
 $opts{h} and usage();
 main(@ARGV);
 
@@ -40,8 +40,13 @@ sub main {
 
     my $newsgroup_id = UsenetIndexer::GetNewsGroupID($dbh, $newsgroup);
 
-    my $sth = $dbh->prepare('SELECT article FROM usenet_article WHERE newsgroup_id=? ORDER BY article');
-    $sth->execute($newsgroup_id);
+    my $sth = $opts{s}
+        ? $dbh->prepare('SELECT article FROM usenet_article WHERE newsgroup_id=? AND article>=? ORDER BY article')
+        : $dbh->prepare('SELECT article FROM usenet_article WHERE newsgroup_id=? ORDER BY article');
+
+    $opts{s}
+        ? $sth->execute($newsgroup_id, $opts{s})
+        : $sth->execute($newsgroup_id);
 
     my $current = undef;
     my @missing = ();
@@ -91,7 +96,6 @@ sub main {
                 my $nntp = UsenetIndexer::GetNNTP($config);
                 $nntp->group($newsgroup);
 
-
                 while (my $article_id = shift @work) {
                     my $remaining = scalar @work;
                     $0 = "$name remaining $remaining";
@@ -129,6 +133,7 @@ sub main {
 sub get_article {
     my ($nntp, $dbh, $article_id, $newsgroup_id, $fill_missing) = @_;
 
+    #my $sth = $dbh->prepare('INSERT INTO usenet_article(article,message,subject,posted,bytes,newsgroup_id) VALUES(?,?,?,?,?,?) ON CONFLICT DO NOTHING');
     my $sth = $dbh->prepare('INSERT INTO usenet_article(article,message,subject,posted,bytes,newsgroup_id) VALUES(?,?,?,?,?,?)');
 
     my $article = UsenetIndexer::GetArticle($nntp, $article_id);

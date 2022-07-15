@@ -23,7 +23,7 @@ sub REAPER {
     $SIG{CHLD} = \&REAPER;
 }
 
-getopts('hbc:p:a:o', \%opts);
+getopts('hbc:p:a:om', \%opts);
 $opts{h} and usage();
 main(@ARGV);
 
@@ -54,8 +54,8 @@ sub main {
 
     undef $nntp;
 
-    my $end = $opts{b} ? $first_article : $last_art;
-    my $first = $opts{b} ? $first_art : $last_article||($end - $articlecount * $forks);
+    my $end = $opts{m} ? $last_art : ($opts{b} ? $first_article : $last_art);
+    my $first = $opts{m} ? get_last_posted_by_date($dbh, $newsgroup_id) : ($opts{b} ? $first_art : $last_article||($end - $articlecount * $forks));
 
     if ($opts{o}) {
         die "Cannot use -o with -a or -b\n" if $opts{b}||$opts{f}||$opts{a};
@@ -148,6 +148,17 @@ sub get {
         $sth->execute($article_id, $article->{message}, $article->{subject}, $article->{posted}, $article->{bytes}, $newsgroup_id);
         $article_id++;
     }
+}
+
+sub get_last_posted_by_date {
+    my ($dbh, $newsgroup_id) = @_;
+
+    my $sth = $dbh->prepare('SELECT MAX(article) FROM usenet_article WHERE posted=(SELECT MAX(posted) FROM usenet_article)');
+    $sth->execute();
+    my ($article) = $sth->fetchrow_array();
+    $sth->finish();
+
+    return $article || 0;
 }
 
 sub usage {

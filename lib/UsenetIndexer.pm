@@ -77,7 +77,7 @@ sub GetNewsGroupName {
 sub GetArticle {
     my ($nntp, $article_id) = @_;
 
-    my $lines = $nntp->head($article_id);
+    my $lines = $nntp->head($article_id) || $nntp->body("<$article_id>");
 
     return undef unless $lines;
     return undef unless @$lines;
@@ -93,13 +93,15 @@ sub GetArticle {
         if ($line =~ /Message-I[Dd]: <([^<>]+)>/) {
             $message = $1;
         } elsif ($line =~ /Subject: ([^\r]+)/) {
+#            print STDERR $line, "\n";
             $subject = $1;
         } elsif ($line =~ /Date: (.+)/) {
+#            print STDERR $line, "\n";
             my $date = $1;
 
             $date =~ s/\s+(\d+)$/ +${1}/;;
             $posted = $date;
-        } elsif ($line =~ /X-Received-Bytes: (\d+)/) {
+        } elsif ($line =~ /X-Received-Bytes: (\d+)/ || $line =~ /Bytes: (\d+)/) {
             $bytes = $1;
         }
     }

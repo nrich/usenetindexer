@@ -36,6 +36,7 @@ CREATE TABLE usenet_article (
 );
 
 CREATE UNIQUE INDEX usenet_article_message_idx ON usenet_article(message);
-CREATE UNIQUE INDEX usenet_article_newsgroup_article_idx ON usenet_article(newsgroup_id, article);
+CREATE INDEX usenet_article_article_idx ON usenet_article(article);
 CREATE INDEX usenet_article_bin_idx ON usenet_article(binary_id);
 CREATE INDEX usenet_article_newsgroup_idx ON usenet_article(newsgroup_id);
+CREATE INDEX usenet_article_posted_idx ON usenet_article(posted);
