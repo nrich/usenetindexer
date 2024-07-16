@@ -20,13 +20,37 @@ my %opts = ();
 
 get '/' => sub {
     my $config = $ENV{CONFIG} || $opts{c} || 'etc/common.conf';
+    my $filter_file = $ENV{FILTER} || $opts{f} || 'etc/filter.txt';
     my $dbh = UsenetIndexer::GetDB($config);
 
     my $limit = param('limit') || 25;
     my $offset = param('offset') || 0;
 
-    my $sth = $dbh->prepare('SELECT id,name,posted FROM usenet_binary ORDER BY posted desc,id DESC LIMIT ? OFFSET ?');
-    $sth->execute($limit, $offset);
+    my @filter_terms = ();
+
+    if (-f $filter_file) {
+        open my $fh, '<', $filter_file;
+
+        if ($fh) {
+            while (my $filter_term = <$fh>) {
+                chomp $filter_term;
+
+                next unless $filter_term;
+
+                push @filter_terms, $filter_term;
+            }
+        } else {
+            warn "Could not open `$filter_file': $!\n";
+        }
+    }
+
+    my $filter = '""';
+    if (@filter_terms) {
+        $filter = join '|', @filter_terms;
+    }
+
+    my $sth = $dbh->prepare("SELECT id,name,posted FROM usenet_binary WHERE name !~* ? ORDER BY posted desc,id DESC LIMIT ? OFFSET ?");
+    $sth->execute($filter, $limit, $offset);
 
     my $host = request->header('Host');
 
