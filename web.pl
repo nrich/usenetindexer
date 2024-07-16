@@ -42,7 +42,35 @@ get '/' => sub {
 
     $dbh->disconnect();
 
-    return template "index.tt", {'usenet_history' => \@history, limit => $limit, offset => $offset};
+    return template "index.tt", {'usenet_history' => \@history, limit => $limit, offset => $offset, search => ''};
+};
+
+post '/' => sub {
+    my $config = $ENV{CONFIG} || $opts{c} || 'etc/common.conf';
+    my $dbh = UsenetIndexer::GetDB($config);
+
+    my $search = param('search') || '';
+
+    die "No search provided" unless $search;
+
+    my $sth = $dbh->prepare("SELECT id,name,posted FROM usenet_binary WHERE to_tsvector('english', name) @@ plainto_tsquery(?)");
+    $sth->execute($search);
+
+    my $host = request->header('Host');
+
+    my @history = ();
+    while (my ($id, $name, $posted) = $sth->fetchrow_array()) {
+        push @history, {
+            title => $name,
+            link => "https://$host/nzb?id=$id",
+            posted => $posted,
+        };
+    }
+    $sth->finish();
+
+    $dbh->disconnect();
+
+    return template "index.tt", {'usenet_history' => \@history, limit => 0, offset => 0, search => $search};
 };
 
 get '/nzb' => sub {
